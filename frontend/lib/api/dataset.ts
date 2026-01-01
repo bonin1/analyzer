@@ -13,10 +13,9 @@ export interface DatasetImportResponse {
 
 export const datasetApi = {
   importDataset: async (zipUrl: string, maxCompanies?: number): Promise<DatasetImportResponse> => {
-    const response = await apiClient.post('/dataset', { 
+    return apiClient.post<DatasetImportResponse>('/dataset', { 
       irsZipUrl: zipUrl,
       maxCompanies: maxCompanies || undefined
     });
-    return response.data;
   }
 };

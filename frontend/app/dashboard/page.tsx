@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Alert } from '@/components/ui/Alert';
 import { datasetApi } from '@/lib/api/dataset';
+import { companiesApi } from '@/lib/api/companies';
+import { Company } from '@/types/company';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -16,6 +19,26 @@ export default function DashboardPage() {
   const [zipUrl, setZipUrl] = useState('https://apps.irs.gov/pub/epostcard/990/xml/2025/2025_TEOS_XML_01A.zip');
   const [maxCompanies, setMaxCompanies] = useState('1000');
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true);
+        const response = await companiesApi.getAll({ limit: 100, sortBy: 'currentRevenue', sortOrder: 'desc' });
+        setCompanies(response.data || []);
+      } catch (error) {
+        console.error('Failed to fetch stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchStats();
+    }
+  }, [user]);
 
   const handleLogout = async () => {
     await logout();
@@ -51,6 +74,9 @@ export default function DashboardPage() {
       });
       setShowUrlInput(false);
       setZipUrl('');
+      // Refresh stats after import
+      const response = await companiesApi.getAll({ limit: 100, sortBy: 'currentRevenue', sortOrder: 'desc' });
+      setCompanies(response.data || []);
     } catch (error: any) {
       setImportResult({
         type: 'error',
@@ -60,6 +86,36 @@ export default function DashboardPage() {
       setImportLoading(false);
     }
   };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
+  // Prepare chart data
+  const topRevenueData = companies.slice(0, 10).map((company) => ({
+    name: company.name.length > 20 ? company.name.substring(0, 20) + '...' : company.name,
+    revenue: company.currentRevenue
+  }));
+
+  const growthData = companies
+    .filter((c) => c.deltas?.revenue?.percentage !== undefined)
+    .sort((a, b) => (b.deltas?.revenue?.percentage || 0) - (a.deltas?.revenue?.percentage || 0))
+    .slice(0, 10)
+    .map((company) => ({
+      name: company.name.length > 20 ? company.name.substring(0, 20) + '...' : company.name,
+      growth: company.deltas?.revenue?.percentage || 0
+    }));
+
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#84cc16'];
+
+  const totalRevenue = companies.reduce((sum, c) => sum + c.currentRevenue, 0);
+  const totalEmployees = companies.reduce((sum, c) => sum + c.currentEmployeeCount, 0);
+  const avgRevenue = companies.length > 0 ? totalRevenue / companies.length : 0;
 
   if (!user) {
     return (
@@ -121,6 +177,122 @@ export default function DashboardPage() {
             </div>
           </Card>
 
+          {/* Statistics Dashboard */}
+          {!statsLoading && companies.length > 0 && (
+            <>
+              {/* Key Metrics */}
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Total Organizations</h3>
+                  <div className="text-3xl font-bold text-gray-900">{companies.length}</div>
+                </Card>
+                <Card>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Total Revenue</h3>
+                  <div className="text-3xl font-bold text-gray-900">{formatCurrency(totalRevenue)}</div>
+                </Card>
+                <Card>
+                  <h3 className="text-sm font-medium text-gray-500 mb-1">Total Employees</h3>
+                  <div className="text-3xl font-bold text-gray-900">{totalEmployees.toLocaleString()}</div>
+                </Card>
+              </div>
+
+              {/* Charts */}
+              <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Top Organizations by Revenue */}
+                <Card>
+                  <h3 className="text-lg font-semibold mb-4">Top 10 Organizations by Revenue</h3>
+                  <div style={{ height: '400px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topRevenueData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45} 
+                          textAnchor="end" 
+                          height={120}
+                          interval={0}
+                        />
+                        <YAxis 
+                          tickFormatter={(value) => `$${(value / 1000000).toFixed(0)}M`}
+                        />
+                        <Tooltip 
+                          formatter={(value: any) => formatCurrency(value)}
+                        />
+                        <Bar dataKey="revenue" fill="#3b82f6" name="Revenue" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+
+                {/* Top Revenue Growth */}
+                <Card>
+                  <h3 className="text-lg font-semibold mb-4">Top 10 Revenue Growth (%)</h3>
+                  <div style={{ height: '400px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={growthData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="name" 
+                          angle={-45} 
+                          textAnchor="end" 
+                          height={120}
+                          interval={0}
+                        />
+                        <YAxis 
+                          tickFormatter={(value) => `${value.toFixed(0)}%`}
+                        />
+                        <Tooltip 
+                          formatter={(value: any) => `${value.toFixed(2)}%`}
+                        />
+                        <Bar dataKey="growth" fill="#10b981" name="Growth %" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Revenue Distribution Pie Chart */}
+              <div className="mt-6">
+                <Card>
+                  <h3 className="text-lg font-semibold mb-4">Revenue Distribution - Top 10 Organizations</h3>
+                  <div style={{ height: '400px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={topRevenueData}
+                          dataKey="revenue"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={120}
+                          label={(entry: any) => `${entry.name}: ${formatCurrency(entry.revenue)}`}
+                          labelLine={true}
+                        >
+                          {topRevenueData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </Card>
+              </div>
+            </>
+          )}
+
+          {statsLoading && (
+            <div className="mt-6">
+              <Card>
+                <div className="text-center py-12">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <p className="mt-2 text-sm text-gray-600">Loading statistics...</p>
+                </div>
+              </Card>
+            </div>
+          )}
+
           <div className="mt-6">
             <Card>
               <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -129,11 +301,10 @@ export default function DashboardPage() {
               
               {importResult && (
                 <Alert 
-                  variant={importResult.type} 
+                  type={importResult.type} 
+                  message={importResult.message}
                   className="mb-4"
-                >
-                  {importResult.message}
-                </Alert>
+                />
               )}
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

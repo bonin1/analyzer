@@ -316,23 +316,78 @@ Navigate to http://localhost:3000 in your browser:
 ## Environment Variables
 
 ### Backend (.env)
+
+Create a `.env` file in the `backend/` directory with the following variables:
+
 ```env
-# Database
+# Database Configuration
 DB_HOST=localhost
 DB_PORT=3306
 DB_NAME=nonprofit_analyzer
 DB_USER=root
-DB_PASSWORD=
+DB_PASSWORD=your_database_password_here
 
-# Server
-PORT=300config/          # Configuration files
+# Server Configuration
+PORT=3001
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+
+# JWT Authentication
+JWT_SECRET=your_jwt_secret_key_min_32_characters_change_in_production
+JWT_EXPIRES_IN=7d
+
+# Security - API Key for dataset import
+API_SECRET_KEY=your_secure_api_key_change_in_production
+```
+
+**Environment Variable Descriptions:**
+
+- `DB_HOST`: Database host address (default: `localhost`)
+- `DB_PORT`: Database port (default: `3306` for MariaDB/MySQL)
+- `DB_NAME`: Name of the database (create this first: `CREATE DATABASE nonprofit_analyzer;`)
+- `DB_USER`: Database username
+- `DB_PASSWORD`: Database password (leave empty if no password set locally)
+
+- `PORT`: Backend server port (default: `3001`)
+- `NODE_ENV`: Environment mode (`development` or `production`)
+- `FRONTEND_URL`: Frontend URL for CORS configuration
+
+- `JWT_SECRET`: Secret key for JWT token signing (minimum 32 characters for security)
+- `JWT_EXPIRES_IN`: JWT token expiration time (e.g., `7d` for 7 days, `24h` for 24 hours)
+
+- `API_SECRET_KEY`: Secret key for protecting the dataset import endpoint (use strong random string)
+
+### Frontend (.env.local)
+
+Create a `.env.local` file in the `frontend/` directory with the following variables:
+
+```env
+# API Configuration
+NEXT_PUBLIC_API_URL=http://localhost:3001/api
+```
+
+**Environment Variable Descriptions:**
+
+- `NEXT_PUBLIC_API_URL`: Backend API base URL (must start with `NEXT_PUBLIC_` to be accessible in browser)
+
+## Project Structure
+
+```
+analyzer/
+├── backend/
+│   ├── config/          # Configuration files
 │   │   ├── index.js    # Centralized config
 │   │   └── logger.js   # Winston logger setup
 │   ├── controller/      # Route controllers
-│   │   └── authController.js
+│   │   ├── authController.js
+│   │   ├── companiesController.js
+│   │   └── datasetController.js
 │   ├── helpers/         # Helper utilities
+│   │   ├── dataHelper.js
+│   │   ├── datasetService.js
 │   │   ├── jwtHelper.js
-│   │   └── passwordHelper.js
+│   │   ├── passwordHelper.js
+│   │   └── xmlParser.js
 │   ├── logs/            # Log files
 │   │   ├── combined.log
 │   │   └── error.log
@@ -351,20 +406,115 @@ PORT=300config/          # Configuration files
 │   ├── routers/         # Express routes
 │   │   ├── authRoutes.js
 │   │   ├── companiesRoutes.js
-│   │   ├── datasetRowith authentication and role-based access control (RBAC).
-- Roles: `admin` and `user`
-- Password hashing with bcrypt
-- JWT token-based authentication
+│   │   ├── datasetRoutes.js
+│   │   └── usersRoutes.js
+│   ├── temp/            # Temporary files for ZIP extraction
+│   ├── app.js          # Express application
+│   ├── database.js     # Database configuration
+│   ├── RBAC.md         # RBAC documentation
+│   └── SECURITY.md     # Security documentation
+├── frontend/
+│   ├── app/            # Next.js app directory
+│   │   ├── companies/  # Companies pages
+│   │   ├── dashboard/  # Protected dashboard page
+│   │   ├── login/      # Login page
+│   │   ├── register/   # Registration page
+│   │   ├── layout.tsx  # Root layout with AuthProvider
+│   │   └── page.tsx    # Home page (redirects)
+│   ├── components/     # React components
+│   │   └── ui/        # Reusable UI components
+│   │       ├── Alert.tsx
+│   │       ├── Button.tsx
+│   │       ├── Card.tsx
+│   │       ├── DeltaDisplay.tsx
+│   │       └── Input.tsx
+│   ├── lib/            # Utility functions
+│   │   ├── api/       # API client and services
+│   │   │   ├── auth.ts
+│   │   │   ├── client.ts
+│   │   │   ├── companies.ts
+│   │   │   └── dataset.ts
+│   │   └── auth/      # Auth context
+│   │       └── AuthContext.tsx
+│   ├── types/          # TypeScript types
+│   │   ├── auth.ts
+│   │   └── company.ts
+│   ├── middleware.ts   # Next.js middleware for route protection
+│   ├── next.config.ts  # Next.js configuration
+│   └── package.json
+├── .github/
+│   ├── instructions/   # TaskSync protocol files
+│   │   ├── tasks.md
+│   │   ├── log.md
+│   │   └── tasksync.instructions.md
+│   └── requirement.md  # Original project requirements
+├── package.json        # Root package.json with dev:all script
+├── README.md           # This file
+└── SOLUTION.md         # Implementation documentation
+```
+
+## User Authentication
+
+The system includes comprehensive user authentication with role-based access control (RBAC):
+
+- **Roles**: `admin` and `user`
+- **Password hashing**: bcrypt with 10 salt rounds
+- **JWT token**: Stored in httpOnly cookies for security
+- **Token expiration**: Configurable (default: 7 days)
+
+For detailed authentication and RBAC information, see:
+- [backend/RBAC.md](backend/RBAC.md) - Role-based access control documentation
+- [backend/SECURITY.md](backend/SECURITY.md) - Security implementation details
 
 ## Security Features
 
 ### Authentication & Authorization
-- JWT tokens stored in httpOnly cookies
+- JWT tokens stored in httpOnly cookies (XSS protection)
 - Password hashing with bcrypt (10 salt rounds)
 - Strong password requirements (8+ chars, uppercase, lowercase, number)
 - Role-based access control (RBAC) with admin and user roles
-- Protected routes with middleware
-: `CREATE DATABASE nonprofit_analyzer;`
+- Protected routes with authentication middleware
+- API key authentication for dataset import endpoint
+
+### HTTP Security
+- Helmet.js for secure HTTP headers
+- CORS with origin whitelist
+- Body size limits (10MB)
+- Request logging with Winston
+
+### Rate Limiting
+- General API: 100 requests per 15 minutes
+- Authentication endpoints: 5 attempts per 15 minutes (brute force protection)
+- Dataset import: 3 requests per hour
+
+For complete security documentation, see [backend/SECURITY.md](backend/SECURITY.md)
+
+## Database Schema
+
+### companies
+Stores main non-profit organization data including current and previous year metrics.
+
+### personnel
+Stores key personnel information linked to companies.
+
+### expense_categories
+Stores expense breakdown by category for each company.
+
+### users
+Stores user accounts for authentication and RBAC.
+
+## Development Notes
+
+- Tables are automatically created/synced on server start via Sequelize
+- Hot reload is enabled for both frontend and backend during development
+- Database logs are disabled by default (set `logging: console.log` in database.js to enable)
+
+## Troubleshooting
+
+### Database Connection Issues
+- Verify MariaDB/MySQL is running
+- Check credentials in backend/.env
+- Ensure database exists: `CREATE DATABASE nonprofit_analyzer;`
 - Check if port 3306 is available
 
 ### Authentication Issues
