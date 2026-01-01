@@ -573,48 +573,6 @@ Note: Hash the password first using bcrypt before inserting.s brute force)
 - Multiple authentication methods (JWT or API key)
 - All security events logged
 
-For detailed security information, see `backend/SECURITY.md` and `backend/RBAC.md`
-│   │   └── usersRoutes.js
-│   ├── app.js          # Express application
-│   ├── database.js     # Database configuration
-│   ├── RBAC.md         # RBAC documentation
-│   └── SECURITY.md     # Security documentation
-├── frontend/
-│   ├── app/            # Next.js app directory
-│   │   ├── dashboard/  # Protected dashboard page
-│   │   ├── login/      # Login page
-│   │   ├── register/   # Registration page
-│   │   ├── layout.tsx  # Root layout with AuthProvider
-│   │   └── page.tsx    # Home page (redirects)
-│   ├── components/     # React components
-│   │   └── ui/        # Reusable UI components
-│   │       ├── Alert.tsx
-│   │       ├── Button.tsx
-│   │       ├── Card.tsx
-│   │       └── Input.tsx
-│   ├── lib/            # Utility functions
-│   │   ├── api/       # API client and services
-│   │   │   ├── auth.ts
-│   │   │   └── client.ts
-│   │   └── auth/      # Auth context
-│   │       └── AuthContext.tsx
-│   ├── types/          # TypeScript types
-│   │   └── auth.ts
-│   └── middleware.ts   # Next.js middleware for route protection
-│   ├── models/          # Sequelize models
-│   ├── routes/          # Express routes
-│   ├── controllers/     # Route controllers
-│   ├── middleware/      # Custom middleware
-│   ├── utils/           # Helper utilities
-│   ├── app.js          # Express application
-│   └── database.js     # Database configuration
-├── frontend/
-│   ├── app/            # Next.js app directory
-│   ├── components/     # React components
-│   └── lib/            # Utility functions
-└── package.json        # Root package.json with dev:all script
-```
-
 ## Database Schema
 
 ### companies
